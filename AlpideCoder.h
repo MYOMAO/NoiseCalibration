@@ -23,6 +23,7 @@
 #include <TFile.h>
 #include <TTree.h>
 #include <map>
+#include <thread>
 
 #include "ITSMFTReconstruction/PixelData.h"
 
@@ -99,7 +100,7 @@ namespace o2
 
 				static constexpr int Error = -1;     // flag for decoding error
 				static constexpr int EOFFlag = -100; // flag for EOF in reading
-				
+
 				int Print = 0;
 				AlpideCoder() = default;
 				~AlpideCoder() = default;
@@ -242,7 +243,7 @@ namespace o2
 							stream << "Unknown word 0x" << std::hex << int(dataC) << " [mode = 0x" << int(expectInp) << "]";
 							return unexpectedEOF(stream.str().c_str()); // error
 						}
-					 
+
 
 						return chipData.getData().size();
 					}
@@ -256,36 +257,39 @@ namespace o2
 
 					//	std::cout << "DOCLEAN" << endl;
 
-					
+
 					if(DOCLEAN == 1){
 
-						auto start = std::chrono::high_resolution_clock::now();
+						//	auto start = std::chrono::high_resolution_clock::now();
 
 						/*
-						for(unsigned int q = 0; q < mNoisyPixels[0].size(); q++){
-							if(KeyHere == mNoisyPixels[0][q]){
-								IsNoise =1;
-								//	LOG(INFO) << "REJECTED ROW = " << row << "  COL = " << col;
+						   for(unsigned int q = 0; q < mNoisyPixels[0].size(); q++){
+						   if(KeyHere == mNoisyPixels[0][q]){
+						   IsNoise =1;
+						//	LOG(INFO) << "REJECTED ROW = " << row << "  COL = " << col;
 
-							}
+						}
 						}
 						*/
-	
+
 						KeyHere = row + col * 1000;
 						if(mNoisyPixels[0][KeyHere] > NHitCut) IsNoise = 1;
-
-						auto end = std::chrono::high_resolution_clock::now();
-						auto difference = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count(); 
+						LOG(INFO) << "MASKED"; 
+					//	std::this_thread::sleep_for(std::chrono::milliseconds(200)); 
+						//			auto end = std::chrono::high_resolution_clock::now();
+						//			auto difference = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count(); 
 
 
 						//Timing << NHitCut << "   " <<  difference << endl;
-						if(Print == 0){
+						/*
+						   if(Print == 0){
 
-							std::cout << "NHitCut = " << NHitCut << "   Number of Keys = " << mNoisyPixels[0].size() <<  "     Calibration Time = " << difference << " microsecond" << std::endl;
-							Print = 1;
-						}
+						   std::cout << "NHitCut = " << NHitCut << "   Number of Keys = " << mNoisyPixels[0].size() <<  "     Calibration Time = " << difference << " microsecond" << std::endl;
+						   Print = 1;
+						   }
+						   */
 					}
-					
+
 
 					if(DOCLEAN == 0){
 						IsNoise = 0;
