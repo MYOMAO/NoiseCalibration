@@ -38,9 +38,9 @@
 #include <bitset>
 #include <iomanip>
 #include <map>
-
-
-
+#include <TFile.h>
+#include <TH1.h>
+#include <TCanvas.h>
 
 #define _RAW_READER_ERROR_CHECKS_
 
@@ -81,7 +81,6 @@ namespace o2
 			uint32_t nPackets = 0;                                                   // total number of packets
 			std::array<int, NErrorsDefined> errorCounts = {};                        // error counters
 			std::array<int, GBTDataTrailer::MaxStateCombinations> packetStates = {}; // packet status from the trailer
-		
 
 			//_____________________________________________________
 			void clear()
@@ -263,6 +262,11 @@ namespace o2
 			RawPixelReader()
 			{
 				mRUEntry.fill(-1); // no known links in the beginning
+				Timming->GetXaxis()->SetTitle("Timing (s)");
+				Timming->GetYaxis()->SetTitle("Counts");
+				Timming->GetXaxis()->CenterTitle();
+				Timming->GetYaxis()->CenterTitle();
+				c->cd();
 			}
 
 			~RawPixelReader() override
@@ -271,8 +275,6 @@ namespace o2
 				printf("RawPixelReader IO time: ");
 				mSWIO.Print();
 			}
-
-
 
 			/// do we interpred GBT words as padded to 128 bits?
 			bool isPadding128() const { return mPadding128; }
@@ -297,11 +299,10 @@ namespace o2
 
 
 			std::vector<std::map<int,int>> mNoisyPixels;
-			std::vector<int> NoisyList;
-
 			int DOCLEAN;
 			int NHitCut;
-
+			TH1D * Timming = new TH1D("Timing","",100,0,0.2);
+			TCanvas * c = new TCanvas("c","c",600,600);
 			/// CRU pages are of max size of 8KB
 			void imposeMaxPage(bool v) { mImposeMaxPage = v; }
 
@@ -330,8 +331,6 @@ namespace o2
 					mCurRUDecodeID = -1;
 					return nullptr; // nothing left
 				}
-
-			
 				return getNextChipData(chipDataVec); // is it ok to use recursion here?
 			}
 
@@ -639,21 +638,18 @@ namespace o2
 			void printRDH(const o2::header::RAWDataHeader* h)
 			{
 				if (!h) {
-					//     printf("Provided RDH pointer is null\n");
+					printf("Provided RDH pointer is null\n");
 					return;
 				}
-				/*
-				   printf("RDH| Ver:%2u Hsz:%2u Blgt:%4u FEEId:0x%04x PBit:%u\n",
-				   uint32_t(h->version), uint32_t(h->headerSize), uint32_t(h->blockLength), uint32_t(h->feeId), uint32_t(h->priority));
-				   printf("RDH|[CRU: Offs:%5u Msz:%4u LnkId:0x%02x Packet:%3u CRUId:0x%04x]\n",
-				   uint32_t(h->offsetToNext), uint32_t(h->memorySize), uint32_t(h->linkID), uint32_t(h->packetCounter), uint32_t(h->cruID));
-				   printf("RDH| TrgOrb:%9u HBOrb:%9u TrgBC:%4u HBBC:%4u TrgType:%u\n",
-				   uint32_t(h->triggerOrbit), uint32_t(h->heartbeatOrbit), uint32_t(h->triggerBC), uint32_t(h->heartbeatBC),
-				   uint32_t(h->triggerType));
-				   printf("RDH| DetField:0x%05x Par:0x%04x Stop:0x%04x PageCnt:%5u\n",
-				   uint32_t(h->detectorField), uint32_t(h->par), uint32_t(h->stop), uint32_t(h->pageCnt));
-				   */
-
+				printf("RDH| Ver:%2u Hsz:%2u Blgt:%4u FEEId:0x%04x PBit:%u\n",
+						uint32_t(h->version), uint32_t(h->headerSize), uint32_t(h->blockLength), uint32_t(h->feeId), uint32_t(h->priority));
+				printf("RDH|[CRU: Offs:%5u Msz:%4u LnkId:0x%02x Packet:%3u CRUId:0x%04x]\n",
+						uint32_t(h->offsetToNext), uint32_t(h->memorySize), uint32_t(h->linkID), uint32_t(h->packetCounter), uint32_t(h->cruID));
+				printf("RDH| TrgOrb:%9u HBOrb:%9u TrgBC:%4u HBBC:%4u TrgType:%u\n",
+						uint32_t(h->triggerOrbit), uint32_t(h->heartbeatOrbit), uint32_t(h->triggerBC), uint32_t(h->heartbeatBC),
+						uint32_t(h->triggerType));
+				printf("RDH| DetField:0x%05x Par:0x%04x Stop:0x%04x PageCnt:%5u\n",
+						uint32_t(h->detectorField), uint32_t(h->par), uint32_t(h->stop), uint32_t(h->pageCnt));
 			}
 
 			//_____________________________________
@@ -661,7 +657,7 @@ namespace o2
 			{
 				// distribute data from the single buffer among the links caches
 
-				// LOG(INFO) << "Caching links data, currently in cache: " << mMinTriggersCached << " triggers";
+				//	LOG(INFO) << "Caching links data, currently in cache: " << mMinTriggersCached << " triggers";
 				auto nRead = loadInput(buffer);
 				if (buffer.isEmpty()) {
 					return nRead;
@@ -714,7 +710,7 @@ namespace o2
 							newTrigger = false;
 						}
 					} else { // a new link was added
-						LOG(INFO) << "Adding new GBT LINK FEEId:" << OUTHEX(rdh->feeId, 4);
+						//	LOG(INFO) << "Adding new GBT LINK FEEId:" << OUTHEX(rdh->feeId, 4);
 						ruDecode.links[linkIDinRU] = std::make_unique<GBTLink>();
 						link = ruDecode.links[linkIDinRU].get();
 						link->statistics.ruLinkID = linkIDinRU;
@@ -766,7 +762,7 @@ namespace o2
 						}
 					}
 				}
-				// LOG(INFO) << "Cached at least " << mMinTriggersCached << " triggers on " << mNLinks << " links of " << mNRUs << " RUs";
+				//LOG(INFO) << "Cached at least " << mMinTriggersCached << " triggers on " << mNLinks << " links of " << mNRUs << " RUs";
 
 				return nRead;
 			}
@@ -807,6 +803,7 @@ namespace o2
 			int decodeNextRUData(RUDecodeData& ruDecData)
 			{
 				// process data of single RU trigger from its links buffers
+				//LOG(INFO) << "Been Here Bro";
 				int minTriggers = INT_MAX;
 				int res = 0;
 				ruDecData.clearTrigger();
@@ -928,17 +925,16 @@ namespace o2
 #ifdef _RAW_READER_ERROR_CHECKS_
 				if (rdh->packetCounter > ruLink->packetCounter + 1) {
 					ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrPacketCounterJump]++;
-					//   LOG(ERROR) << ruLinkStat.ErrNames[GBTLinkDecodingStat::ErrPacketCounterJump]
-					//             << " : FEEId:" << OUTHEX(rdh->feeId, 4) << ": jump from " << int(ruLink->packetCounter)
-					//            << " to " << int(rdh->packetCounter);
+					LOG(ERROR) << ruLinkStat.ErrNames[GBTLinkDecodingStat::ErrPacketCounterJump]
+						<< " : FEEId:" << OUTHEX(rdh->feeId, 4) << ": jump from " << int(ruLink->packetCounter)
+						<< " to " << int(rdh->packetCounter);
 					printRDH(rdh);
 				}
 #endif
+				ruLink->packetCounter = rdh->packetCounter;
 
 				ruDecData.nCables = ruDecData.ruInfo->nCables;
 				while (1) {
-					ruLink->packetCounter = rdh->packetCounter;
-
 					mDecodingStat.nBytesProcessed += rdh->memorySize;
 					mDecodingStat.nPagesProcessed++;
 					raw += rdh->headerSize;
@@ -1016,10 +1012,11 @@ namespace o2
 
 #ifdef _RAW_READER_ERROR_CHECKS_
 						ruDecData.cableLinkID[cableSW] = linkIDinRU;
+
 						ruLink->lanesWithData |= 0x1 << cableSW;    // flag that the data was seen on this lane
 						if (ruLink->lanesStop & (0x1 << cableSW)) { // make sure stopped lanes do not transmit the data
 							ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrDataForStoppedLane]++;
-							//          LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Data received for stopped lane " << cableHW << " (sw:" << cableSW << ")";
+							LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Data received for stopped lane " << cableHW << " (sw:" << cableSW << ")";
 							printRDH(rdh);
 						}
 #endif
@@ -1060,11 +1057,11 @@ namespace o2
 
 #ifdef _RAW_READER_ERROR_CHECKS_
 						// make sure all lane stops for finished page are received
-						if ((ruLink->lanesActive & ~ruLink->lanesStop) && nGBTWords) {
+						if (ruLink->lanesActive != ruLink->lanesStop && nGBTWords) {
 							if (rdh->triggerType != o2::trigger::SOT) { // only SOT trigger allows unstopped lanes?
 								std::bitset<32> active(ruLink->lanesActive), stopped(ruLink->lanesStop);
-								//            LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " end of FEE data but not all lanes received stop"
-								//                       << "| active: " << active << " stopped: " << stopped;
+								LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " end of FEE data but not all lanes received stop"
+									<< "| active: " << active << " stopped: " << stopped;
 								printRDH(rdh);
 								ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrUnstoppedLanes]++;
 							}
@@ -1073,8 +1070,8 @@ namespace o2
 						// make sure all active lanes (except those in time-out) have sent some data
 						if ((~ruLink->lanesWithData & ruLink->lanesActive) != ruLink->lanesTimeOut && nGBTWords) {
 							std::bitset<32> withData(ruLink->lanesWithData), active(ruLink->lanesActive), timeOut(ruLink->lanesTimeOut);
-							//          LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Lanes not in time-out but not sending data"
-							//                     << "\n| with data: " << withData << " active: " << active << " timeOut: " << timeOut;
+							LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Lanes not in time-out but not sending data"
+								<< "\n| with data: " << withData << " active: " << active << " timeOut: " << timeOut;
 							printRDH(rdh);
 							ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrNoDataForActiveLane]++;
 						}
@@ -1087,8 +1084,8 @@ namespace o2
 #ifdef _RAW_READER_ERROR_CHECKS_
 					// check if the page counter increases
 					if (rdhN->pageCnt != rdh->pageCnt + 1) {
-						//        LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Discontinuity in the RDH page counter of the same RU trigger: old "
-						//                   << rdh->pageCnt << " new: " << rdhN->pageCnt;
+						LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Discontinuity in the RDH page counter of the same RU trigger: old "
+							<< rdh->pageCnt << " new: " << rdhN->pageCnt;
 						printRDH(rdh);
 						printRDH(rdhN);
 						ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrPageCounterDiscontinuity]++;
@@ -1197,9 +1194,9 @@ namespace o2
 #ifdef _RAW_READER_ERROR_CHECKS_
 				if (rdh->packetCounter > ruLink->packetCounter + 1) {
 					ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrPacketCounterJump]++;
-					//      LOG(ERROR) << ruLinkStat.ErrNames[GBTLinkDecodingStat::ErrPacketCounterJump]
-					//                 << " : FEEId:" << OUTHEX(rdh->feeId, 4) << ": jump from " << int(ruLink->packetCounter)
-					//                 << " to " << int(rdh->packetCounter);
+					LOG(ERROR) << ruLinkStat.ErrNames[GBTLinkDecodingStat::ErrPacketCounterJump]
+						<< " : FEEId:" << OUTHEX(rdh->feeId, 4) << ": jump from " << int(ruLink->packetCounter)
+						<< " to " << int(rdh->packetCounter);
 					printRDH(rdh);
 				}
 #endif
@@ -1223,7 +1220,7 @@ namespace o2
 					}
 					if (!gbtH->isDataHeader()) {
 						gbtH->printX(true);
-						//       LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " GBT payload header was expected, abort page decoding";
+						LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " GBT payload header was expected, abort page decoding";
 						printRDH(rdh);
 						gbtH->printX(true);
 						ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrMissingGBTHeader]++;
@@ -1284,7 +1281,7 @@ namespace o2
 						ruLink->lanesWithData |= 0x1 << cableSW;    // flag that the data was seen on this lane
 						if (ruLink->lanesStop & (0x1 << cableSW)) { // make sure stopped lanes do not transmit the data
 							ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrDataForStoppedLane]++;
-							//          LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Data received for stopped lane " << cableHW << " (sw:" << cableSW << ")";
+							LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Data received for stopped lane " << cableHW << " (sw:" << cableSW << ")";
 							printRDH(rdh);
 						}
 #endif
@@ -1334,8 +1331,8 @@ namespace o2
 						if (ruLink->lanesActive != ruLink->lanesStop && nGBTWords) {
 							if (rdh->triggerType != o2::trigger::SOT) { // only SOT trigger allows unstopped lanes?
 								std::bitset<32> active(ruLink->lanesActive), stopped(ruLink->lanesStop);
-								//            LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " end of FEE data but not all lanes received stop"
-								//                       << "| active: " << active << " stopped: " << stopped;
+								LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " end of FEE data but not all lanes received stop"
+									<< "| active: " << active << " stopped: " << stopped;
 								printRDH(rdh);
 								ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrUnstoppedLanes]++;
 							}
@@ -1344,8 +1341,8 @@ namespace o2
 						// make sure all active lanes (except those in time-out) have sent some data
 						if ((~ruLink->lanesWithData & ruLink->lanesActive) != ruLink->lanesTimeOut && nGBTWords) {
 							std::bitset<32> withData(ruLink->lanesWithData), active(ruLink->lanesActive), timeOut(ruLink->lanesTimeOut);
-							//          LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Lanes not in time-out but not sending data"
-							//                     << "| with data: " << withData << " active: " << active << " timeOut: " << timeOut;
+							LOG(ERROR) << "FEEId:" << OUTHEX(rdh->feeId, 4) << " Lanes not in time-out but not sending data"
+								<< "| with data: " << withData << " active: " << active << " timeOut: " << timeOut;
 							printRDH(rdh);
 							ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrNoDataForActiveLane]++;
 						}
@@ -1420,14 +1417,19 @@ namespace o2
 					}
 #endif
 
+					//LOG(INFO) << "COUNT TIME NOW";
+					//		static TStopwatch sw;
+					//		sw.Start(false);
+					auto start = std::chrono::high_resolution_clock::now();
+
 					while ((res = mCoder.decodeChip(*chipData, cableData, DOCLEAN,NHitCut, mNoisyPixels))) { // we register only chips with hits or errors flags set
 						if (res > 0) {
 #ifdef _RAW_READER_ERROR_CHECKS_
 							// for the IB staves check if the cable ID is the same as the chip ID on the module
 							if (decData.ruInfo->ruType == 0) { // ATTENTION: this is a hack tailored for temporary check
 								if (chipData->getChipID() != icab) {
-									// LOG(ERROR) << "FEEId:" << OUTHEX(decData.ruInfo->idHW, 4) << " IB cable " << icab
-									//       << " shipped chip ID= " << chipData->getChipID();
+									LOG(ERROR) << "FEEId:" << OUTHEX(decData.ruInfo->idHW, 4) << " IB cable " << icab
+										<< " shipped chip ID= " << chipData->getChipID();
 									ruLinkStat.errorCounts[GBTLinkDecodingStat::ErrIBChipLaneMismatch]++;
 									printRDH(decData.links[decData.cableLinkID[icab]]->lastRDH);
 								}
@@ -1448,10 +1450,16 @@ namespace o2
 							}
 						}
 					}
+					//			sw.Stop();
+					//			sw.Print();	
+					auto end = std::chrono::high_resolution_clock::now();
+					auto difference = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count(); 
+					//std::cout << "NHitCut = " << NHitCut << "   Number of Keys = " << mNoisyPixels[0].size() <<  "     Calibration Time = " << difference/1000.0 << " second" << std::endl;
+					Timming->Fill(difference/1000.0);
+
 				}
-
-
-				
+				Timming->Draw();
+				c->SaveAs(Form("/afs/cern.ch/user/s/szhaozho/public/TimingStat%d.png",DOCLEAN));
 				return ntot;
 			}
 
@@ -1489,36 +1497,36 @@ namespace o2
 				mSWIO.Start();
 				clear(false); // do not reset statistics
 				LOG(INFO) << "opening raw data input file " << filename;
+				mIOFile.open(filename.c_str(), std::ifstream::binary);
+				assert(mIOFile.good());
+
+				LOG(INFO) << "opening raw data input file " << filename;
 				mNoisyPixels.assign(1,std::map<int,int>());
 				LOG(INFO) << "DONE Assigned MAP" << filename;
-
-
-
 				LOG(INFO) << "LOADING 2D MAP for NOISE CALIBRATION";
 				std::ifstream NoiseHitCut("HitCut.dat");
 				NoiseHitCut >> NHitCut;
-			//	std::string NHitCutstring = std::to_string(NHitCut);
+				//	std::string NHitCutstring = std::to_string(NHitCut);
 
 				//Input the Map//
 				TFile * finMap = new TFile("KeyMap.root");
 				finMap->cd();
 
 				LOG(INFO) << "Map Injected";
-					
+
 				//mNoisyPixels = (std::vector<std::map<int,int>>) finMap->Get("NoisyCut");
 				std::vector<std::map<int,int>> * tmp;
 				finMap->GetObject("Noise",tmp);
 				mNoisyPixels = * tmp;
-				
+
 				LOG(INFO) << "DONE READING NOISY PIXELS KEYS";
 
 				std::ifstream NoiseClean("Clean.dat");
 				NoiseClean >> DOCLEAN;
 
 				LOG(INFO) << "DONE LOADING";
-				
-				mIOFile.open(filename.c_str(), std::ifstream::binary);
-				assert(mIOFile.good());
+
+
 				mRawBuffer.clear();
 				mRawBuffer.expand(RawBufferSize);
 				mSWIO.Stop();
@@ -1607,7 +1615,7 @@ namespace o2
 				if (mRUEntry[ruSW] < 0) {
 					mRUEntry[ruSW] = mNRUs++;
 					mRUDecodeVec[mRUEntry[ruSW]].ruInfo = mMAP.getRUInfoSW(ruSW); // info on the stave/RU
-					LOG(INFO) << "Defining container for RU " << ruSW << " at slot " << mRUEntry[ruSW];
+					//LOG(INFO) << "Defining container for RU " << ruSW << " at slot " << mRUEntry[ruSW];
 				}
 				return mRUDecodeVec[mRUEntry[ruSW]];
 			}
