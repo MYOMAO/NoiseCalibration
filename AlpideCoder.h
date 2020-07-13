@@ -259,10 +259,8 @@ namespace o2
 					int KeyHere;
 
 					TotalPixelCut = TotalPixelCut + 1;
-					//std::cout << "TotalPixelCut All Before = " << TotalPixelCut   << std::endl;
 
 					if(DOCLEAN == 1){
-
 
 					
 						KeyHere = row + col * 1000;
@@ -274,20 +272,7 @@ namespace o2
 							TotalCalibrated = TotalCalibrated + 1;
 				
 						}
-						//LOG(INFO) << "MASKED"; 
-					//	std::this_thread::sleep_for(std::chrono::milliseconds(200)); 
-						//			auto end = std::chrono::high_resolution_clock::now();
-						//			auto difference = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count(); 
 
-
-						//Timing << NHitCut << "   " <<  difference << endl;
-						/*
-						   if(Print == 0){
-
-						   std::cout << "NHitCut = " << NHitCut << "   Number of Keys = " << mNoisyPixels[0].size() <<  "     Calibration Time = " << difference << " microsecond" << std::endl;
-						   Print = 1;
-						   }
-						   */
 					}
 
 					if(IsNoise == 0) chipData.getData().emplace_back(row, col);
