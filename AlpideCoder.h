@@ -107,7 +107,7 @@ namespace o2
 				//
 				/// decode alpide data for the next non-empty chip from the buffer
 				template <class T>
-					int decodeChip(ChipPixelData& chipData, T& buffer,  int& DOCLEAN, int& NHitCut, std::vector<std::map<int,int>> mNoisyPixels)
+					int decodeChip(ChipPixelData& chipData, T& buffer,  int& DOCLEAN, int& NHitCut, int& TotalPixelCut,int& TotalCalibrated, std::vector<std::map<int,int>> mNoisyPixels)
 					{
 						// read record for single non-empty chip, updating on change module and cycle.
 						// return number of records filled (>0), EOFFlag or Error
@@ -122,6 +122,8 @@ namespace o2
 						uint32_t expectInp = ExpectChipHeader | ExpectChipEmpty; // data must always start with chip header or chip empty flag
 
 						chipData.clear();
+					
+				//		std::cout << "NHitCut Inside = " << NHitCut <<std::endl;
 
 						while (buffer.next(dataC)) {
 							//
@@ -161,7 +163,7 @@ namespace o2
 									colDPrev++;
 									for (int ihr = 0; ihr < nRightCHits; ihr++) {
 										// chipData.getData().emplace_back(rightColHits[ihr], colDPrev);
-										add_hit(chipData,rightColHits[ihr],colDPrev, DOCLEAN, NHitCut, mNoisyPixels);
+										add_hit(chipData,rightColHits[ihr],colDPrev, DOCLEAN, NHitCut, TotalPixelCut, TotalCalibrated,  mNoisyPixels);
 									}
 								}
 								break;
@@ -190,7 +192,9 @@ namespace o2
 										colDPrev++;
 										for (int ihr = 0; ihr < nRightCHits; ihr++) {
 											//chipData.getData().emplace_back(rightColHits[ihr], colDPrev);
-											add_hit(chipData,rightColHits[ihr],colDPrev, DOCLEAN, NHitCut, mNoisyPixels);
+											//std::cout << "NHitCut Inside2 = " << NHitCut <<std::endl;
+
+											add_hit(chipData,rightColHits[ihr],colDPrev, DOCLEAN, NHitCut, TotalPixelCut, TotalCalibrated, mNoisyPixels);
 										}
 										colDPrev = colD;
 										nRightCHits = 0; // reset the buffer
@@ -205,7 +209,7 @@ namespace o2
 										rightColHits[nRightCHits++] = row; // col = colD+1
 									} else {
 										//    chipData.getData().emplace_back(row, colD); // col = colD, left column hits are added directly to the container
-										add_hit(chipData,row,colD, DOCLEAN, NHitCut, mNoisyPixels);
+										add_hit(chipData,row,colD, DOCLEAN, NHitCut, TotalPixelCut, TotalCalibrated, mNoisyPixels);
 									}
 
 									if ((dataS & (~MaskDColID)) == DATALONG) { // multiple hits ?
@@ -222,7 +226,7 @@ namespace o2
 													rightColHits[nRightCHits++] = rowE;
 												} else {
 													//  chipData.getData().emplace_back(rowE, colD + rightC); // left column hits are added directly to the container
-													add_hit(chipData,rowE, colD + rightC, DOCLEAN, NHitCut, mNoisyPixels);
+													add_hit(chipData,rowE, colD + rightC, DOCLEAN, NHitCut, TotalPixelCut, TotalCalibrated, mNoisyPixels);
 												}
 											}
 										}
@@ -248,33 +252,29 @@ namespace o2
 						return chipData.getData().size();
 					}
 
-				bool add_hit(ChipPixelData& chipData, short row, short col, int& DOCLEAN, int& NHitCut,  std::vector<std::map<int,int>>& mNoisyPixels  ) {
+				bool add_hit(ChipPixelData& chipData, short row, short col, int& DOCLEAN, int& NHitCut, int& TotalPixelCut, int& TotalCalibrated,  std::vector<std::map<int,int>>& mNoisyPixels  ) {
 					//Add the Calibraition//
 					bool IsNoise = 0;
 					int NoiseKey;
 					int KeyHere;
 
-
-					//	std::cout << "DOCLEAN" << endl;
-
+					TotalPixelCut = TotalPixelCut + 1;
+					//std::cout << "TotalPixelCut All Before = " << TotalPixelCut   << std::endl;
 
 					if(DOCLEAN == 1){
 
-						//	auto start = std::chrono::high_resolution_clock::now();
 
-						/*
-						   for(unsigned int q = 0; q < mNoisyPixels[0].size(); q++){
-						   if(KeyHere == mNoisyPixels[0][q]){
-						   IsNoise =1;
-						//	LOG(INFO) << "REJECTED ROW = " << row << "  COL = " << col;
-
-						}
-						}
-						*/
-
+					
 						KeyHere = row + col * 1000;
-						if(mNoisyPixels[0][KeyHere] > NHitCut) IsNoise = 1;
-						LOG(INFO) << "MASKED"; 
+					
+										
+		
+						if(mNoisyPixels[0][KeyHere] > NHitCut){
+							IsNoise = 1;
+							TotalCalibrated = TotalCalibrated + 1;
+				
+						}
+						//LOG(INFO) << "MASKED"; 
 					//	std::this_thread::sleep_for(std::chrono::milliseconds(200)); 
 						//			auto end = std::chrono::high_resolution_clock::now();
 						//			auto difference = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count(); 
@@ -288,11 +288,6 @@ namespace o2
 						   Print = 1;
 						   }
 						   */
-					}
-
-
-					if(DOCLEAN == 0){
-						IsNoise = 0;
 					}
 
 					if(IsNoise == 0) chipData.getData().emplace_back(row, col);

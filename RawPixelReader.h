@@ -41,11 +41,12 @@
 #include <TFile.h>
 #include <TH1.h>
 #include <TCanvas.h>
+#include <fstream>
 
 #define _RAW_READER_ERROR_CHECKS_
 
 #define OUTHEX(v, l) "0x" << std::hex << std::setfill('0') << std::setw(l) << v << std::dec
-
+using namespace std;
 namespace o2
 {
 	namespace itsmft
@@ -108,7 +109,7 @@ namespace o2
 				for (int i = 0; i < NErrorsDefined; i++) {
 					if (!skipEmpty || errorCounts[i]) {
 						printf("%-70s: %d\n", ErrNames[i].data(), errorCounts[i]);
-					}
+					} 
 				}
 			}
 
@@ -266,14 +267,33 @@ namespace o2
 				Timming->GetYaxis()->SetTitle("Counts");
 				Timming->GetXaxis()->CenterTitle();
 				Timming->GetYaxis()->CenterTitle();
+				Timming->GetYaxis()->SetTitleOffset(1.1);
 				c->cd();
+				TotalPixelCut = 0;
+				TotalPixelCutPre = 0;
+				TotalCalibrated = 0;
+				Call = 500;
+				CallIndex = 0;
+				Blocks = 0;
+				BlocksMax = 10000;
 			}
 
 			~RawPixelReader() override
 			{
+				std::cout << "Total Pixel Cut = " << TotalPixelCut << std::endl;
+				Timming->Draw();
+				std::cout << "Average Time = " << Timming->GetMean() << "    RMS Time = " << Timming->GetRMS() << std::endl;
+				std::ofstream TimePrint("TimePrint.dat", ios::app);
+				TimePrint << "Average Time = " << Timming->GetMean() << "    RMS Time = " << Timming->GetRMS() <<  std::endl;
+				
+			
+				std::cout << "Threshold = " << NHitCut << "   TotalCalibrated = " << TotalCalibrated << std::endl;
+
+				c->SaveAs(Form("/afs/cern.ch/user/s/szhaozho/public/TimingStat_%d_%d.png",DOCLEAN,NHitCut));	
 				mSWIO.Stop();
 				printf("RawPixelReader IO time: ");
 				mSWIO.Print();
+				
 			}
 
 			/// do we interpred GBT words as padded to 128 bits?
@@ -301,7 +321,20 @@ namespace o2
 			std::vector<std::map<int,int>> mNoisyPixels;
 			int DOCLEAN;
 			int NHitCut;
-			TH1D * Timming = new TH1D("Timing","",100,0,0.2);
+			int TotalPixelCut;
+			int TotalPixelCutPre;
+			int TotalCalibrated;
+			int Call;
+			int CallIndex;
+			int Blocks;
+			int BlocksMax;
+
+
+			std::chrono::time_point<std::chrono::high_resolution_clock> start;
+			std::chrono::time_point<std::chrono::high_resolution_clock> end;
+
+			TH1D * Timming = new TH1D("Timing","",300,0,1000.0);
+
 			TCanvas * c = new TCanvas("c","c",600,600);
 			/// CRU pages are of max size of 8KB
 			void imposeMaxPage(bool v) { mImposeMaxPage = v; }
@@ -324,7 +357,7 @@ namespace o2
 					mCurRUDecodeID = 0; // no more decoded data if reached this place,
 				}
 				// will need to decode new trigger
-				if (mMinTriggersCached < 2) { // last trigger might be incomplete, need to cache more data
+			if (mMinTriggersCached < 2) { // last trigger might be incomplete, need to cache more data
 					cacheLinksData(mRawBuffer);
 				}
 				if (mMinTriggersCached < 1 || !decodeNextTrigger()) {
@@ -1420,9 +1453,18 @@ namespace o2
 					//LOG(INFO) << "COUNT TIME NOW";
 					//		static TStopwatch sw;
 					//		sw.Start(false);
-					auto start = std::chrono::high_resolution_clock::now();
+					
+					
 
-					while ((res = mCoder.decodeChip(*chipData, cableData, DOCLEAN,NHitCut, mNoisyPixels))) { // we register only chips with hits or errors flags set
+					if(CallIndex == Call) CallIndex = 0;
+
+					if(CallIndex == 0) 	start = std::chrono::high_resolution_clock::now();
+					
+					
+				//	std::this_thread::sleep_for(std::chrono::microseconds(50));
+				//	std::cout << "NHitCut Out = " << NHitCut <<std::endl;
+
+					while ((res = mCoder.decodeChip(*chipData, cableData, DOCLEAN,NHitCut, TotalPixelCut,TotalCalibrated, mNoisyPixels))) { // we register only chips with hits or errors flags set
 						if (res > 0) {
 #ifdef _RAW_READER_ERROR_CHECKS_
 							// for the IB staves check if the cable ID is the same as the chip ID on the module
@@ -1452,14 +1494,27 @@ namespace o2
 					}
 					//			sw.Stop();
 					//			sw.Print();	
-					auto end = std::chrono::high_resolution_clock::now();
-					auto difference = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count(); 
-					//std::cout << "NHitCut = " << NHitCut << "   Number of Keys = " << mNoisyPixels[0].size() <<  "     Calibration Time = " << difference/1000.0 << " second" << std::endl;
-					Timming->Fill(difference/1000.0);
+				
+					//std::cout << "Pixels In Block = " << TotalPixelCut - TotalPixelCutPre << std::endl;
+				
+					CallIndex = CallIndex + 1;
 
+					//std::cout << "NHitCut = " << NHitCut << "   Number of Keys = " << mNoisyPixels[0].size() <<  "     Calibration Time = " << difference/1000.0 << " second" << std::endl;
+	
+					if(CallIndex == Call)
+					{
+						std::cout << "Block Now  = " << Blocks << "     Pixels In Block = " << TotalPixelCut - TotalPixelCutPre << std::endl;
+						TotalPixelCutPre = TotalPixelCut;
+						end = std::chrono::high_resolution_clock::now();
+						auto difference = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count(); 
+						Timming->Fill(difference/1000.0);
+	
+
+					}
+					Blocks = Blocks + 1;
+					if(Blocks > BlocksMax) break;
 				}
-				Timming->Draw();
-				c->SaveAs(Form("/afs/cern.ch/user/s/szhaozho/public/TimingStat%d.png",DOCLEAN));
+
 				return ntot;
 			}
 
@@ -1486,6 +1541,7 @@ namespace o2
 					mCurRUDecodeID = -1;
 					return false; // nothing left
 				}
+
 				return getNextChipData(chipData); // is it ok to use recursion here?
 			}
 
@@ -1518,8 +1574,24 @@ namespace o2
 				std::vector<std::map<int,int>> * tmp;
 				finMap->GetObject("Noise",tmp);
 				mNoisyPixels = * tmp;
-
+				
 				LOG(INFO) << "DONE READING NOISY PIXELS KEYS";
+			
+				/*	
+				LOG(INFO) << "----------------------------------  COUNTING SHITS ---------------------------------- ";
+
+				int FuckedCounts = 0;
+
+				for(int i = 0; i < mNoisyPixels[0].size(); i++){
+	
+					if(mNoisyPixels[0][i] > 0){
+						std::cout << "Key = " << i << "  Hits = " << mNoisyPixels[0][i] << std::endl;
+						FuckedCounts++;
+					}
+				}
+				std::cout << "FuckedCounts = " << FuckedCounts << std::endl; 
+				LOG(INFO) << "----------------------------------  DONE SHITS ---------------------------------- ";
+				*/
 
 				std::ifstream NoiseClean("Clean.dat");
 				NoiseClean >> DOCLEAN;
