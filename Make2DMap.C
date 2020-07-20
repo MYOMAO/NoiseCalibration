@@ -1,6 +1,6 @@
 /// \file CheckDigits.C
 /// \brief Simple macro to check ITSU digits
-
+/*
 
 #include <TCanvas.h>
 #include <TFile.h>
@@ -20,15 +20,31 @@
 #include "SimulationDataFormat/MCTruthContainer.h"
 #include "SimulationDataFormat/MCCompLabel.h"
 #include "DetectorsBase/GeometryManager.h"
+*/
+
+
+#include <TFile.h>
+#include <TTree.h>
+#include <TStopwatch.h>
+#include <memory>
+#include <iostream>
+#include "FairLogger.h"
+#include "DataFormatsITSMFT/ROFRecord.h"
+#include "DataFormatsITSMFT/Digit.h"
+#include "SimulationDataFormat/DigitizationContext.h"
+#include "SimulationDataFormat/MCTruthContainer.h"
+#include "SimulationDataFormat/MCCompLabel.h"
+
 
 #pragma link C++ class std::vector<std::map<int,int>>+;
 
-
-using namespace o2::base;
+using namespace std;
+//using namespace o2::base;
 
 void Make2DMap(std::string digifile = "itsdigits.root", int HitCut = -1)
 {
 
+	/*
 	std::string inputGeom = "O2geometry.root";
 	using o2::itsmft::Digit;
 	using o2::itsmft::SegmentationAlpide;
@@ -43,11 +59,11 @@ void Make2DMap(std::string digifile = "itsdigits.root", int HitCut = -1)
 	gman->fillMatrixCache(o2::utils::bit2Mask(o2::TransformType::L2G));
 
 	SegmentationAlpide seg;
-
+	*/
 
 	// Digits
 	TFile* file1 = TFile::Open(digifile.data());
-	TTree* digTree = (TTree*)gFile->Get("o2sim");
+	TTree* digTree = (TTree*)file1->Get("o2sim");
 	std::vector<o2::itsmft::Digit>* digArr = nullptr;
 	o2::dataformats::MCTruthContainer<o2::MCCompLabel>* labels = nullptr;
 	digTree->SetBranchAddress("ITSDigit", &digArr);
@@ -68,7 +84,7 @@ void Make2DMap(std::string digifile = "itsdigits.root", int HitCut = -1)
 	mNoisyPixelsCut.assign(1,std::map<int,int>());
 
 
-	int nd = -1;
+	int nd = 0;
 
 	for (int iev = 0; iev < nevD; iev++) {
 		digTree->GetEvent(iev);
